@@ -14,8 +14,6 @@ module.exports = class Forecast {
         testData.push([testData[testData.length - 1][0], forecast]);
         count--;
 
-        console.log(forecast);
-
         if (count <= 0) {
             return forecast;
         } else {
