@@ -130,6 +130,8 @@ async function run()
 
 		nCPULoadAverage = Math.ceil(nCPULoadAverage / objMetrics['nodes'].length);
 
+		nCPULoadAverage = 69;
+
 		arrCPULoadAverage.push([nIndex, nCPULoadAverage]);
 
 		console.log("bProvisioning: " + bProvisioning);
@@ -209,12 +211,22 @@ async function run()
 				let objAvailableServerTypes = {};
 				try
 				{
-					objAvailableServerTypes = await metalCloud.server_type_available_server_count_batch(
+					/*objAvailableServerTypes = await metalCloud.server_type_available_server_count_batch(
 						objInfrastructure['user_id_owner'],
 						objInfrastructure['datacenter_name'],
 						Object.keys(objServerTypes),
 						100
-					);
+					);*/
+
+					objAvailableServerTypes = {};
+					const arrServerTypesAuxAux = Object.keys(objServerTypes);
+
+					for(let i = 0; i < arrServerTypesAuxAux.length; i++)
+					{
+						objAvailableServerTypes[arrServerTypesAuxAux[i]] = 0;
+					}
+
+					objAvailableServerTypes['1'] = 1;
 				}
 				catch(err)
 				{
