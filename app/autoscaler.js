@@ -2,7 +2,6 @@ const Math = require('mathjs');
 const sleep = require('sleep');
 const Process = require('process');
 const Fetch = require('node-fetch');
-const Couchbase = require('couchbase');
 const Forecast = require("./forecast.js");
 const MetalCloud = require("metal-cloud-sdk");
 const JSONRPC = require("jsonrpc-bidirectional");
@@ -92,6 +91,15 @@ async function run()
 			)).text());
 		}
 		catch(err)
+		{
+			sleep.sleep(2);
+			continue;
+		}
+
+		if(
+			objMetrics['storageTotals']['ram']['total'] === undefined
+			|| objMetrics['storageTotals']['ram']['used'] === undefined
+		)
 		{
 			sleep.sleep(2);
 			continue;
