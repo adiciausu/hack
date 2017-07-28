@@ -295,7 +295,10 @@ async function run()
 				/* Bug safety. */
 				if(nRAMExcessGB >= nRAMTotalGB)
 				{
-					nRAMExcessGB = nRAMTotalGB - 1;
+					nRAMExcessGB = Math.max(
+						nRAMTotalGB - 32,
+						0
+					);
 				}
 
 				console.log("nRAMExcessGB: " + nRAMExcessGB);
