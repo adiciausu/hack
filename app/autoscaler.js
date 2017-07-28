@@ -130,8 +130,6 @@ async function run()
 
 		nCPULoadAverage = Math.ceil(nCPULoadAverage / objMetrics['nodes'].length);
 
-		nCPULoadAverage = 69;
-
 		arrCPULoadAverage.push([nIndex, nCPULoadAverage]);
 
 		console.log("bProvisioning: " + bProvisioning);
