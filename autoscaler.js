@@ -1,6 +1,8 @@
+const sleep = require('sleep');
 const Process = require('process');
 const Fetch = require('node-fetch');
 const Couchbase = require('couchbase');
+const Forecast = require("./forecast.js");
 const MetalCloud = require("metal-cloud-sdk");
 const JSONRPC = require("jsonrpc-bidirectional");
 
@@ -59,14 +61,85 @@ async function run()
 		}
 	}
 
-	const objMetrics = await metrics(
-		objInstanceArray['instance_array_subdomain'],
-		8091, /* @TODO: Take it from the cluster_app. */
-		strUsername,
-		strPassword
-	);
+	let i = 0;
 
-	console.log(objMetrics);
+	let nRAMTotalB = null;
+	let arrRAMUsedB = [];
+
+	const nIntervalSecs = 5;
+	const nProvisioningDurationSecs = 5 * 60;
+	const nRAMTotalFactor = 0.7;
+	const nMinSampleSize = 5;
+
+	let bProvisioning = false;
+
+	while(true)
+	{
+		const objMetrics = JSON.parse(await (await metrics(
+			objInstanceArray['instance_array_subdomain'],
+			8091, /* @TODO: Take it from the cluster_app. */
+			strUsername,
+			strPassword
+		)).text());
+
+		nRAMTotalB = objMetrics['storageTotals']['ram']['total'];
+		arrRAMUsedB.push([i++, objMetrics['storageTotals']['ram']['used']]);
+
+		console.log("nRAMTotalB: " + nRAMTotalB);
+		console.log("nRAMUsed: " + objMetrics['storageTotals']['ram']['used']);
+		console.log(arrRAMUsedB);
+
+		if(
+			!bProvisioning
+			&& arrRAMUsedB.length >= nMinSampleSize
+		)
+		{
+			const forecast = new Forecast();
+			const nRAMUsedForecastB = forecast.forecast(
+				arrRAMUsedB,
+				nProvisioningDurationSecs / nIntervalSecs
+			);
+
+			console.log("nRAMForecasted: " + nRAMUsedForecastB);
+
+			if(nRAMUsedForecastB >= nRAMTotalB * nRAMTotalFactor)
+			{
+				const nRAMTotalGB = nRAMTotalB / 1024 / 1024 / 1024;
+				const nRAMUsedForecastGB = nRAMUsedForecastGB / 1024 / 1024 / 1204;
+				const nRAMRequiredGB = nRAMUsedForecastGB - nRAMTotalGB * nRAMTotalFactor;
+
+				console.log("nRAMRequiredGB: " + nRAMRequiredGB);
+
+				const objAvailableServerTypes = {};
+				while(true)
+				{
+					try
+					{
+						objAvailableServerTypes = await metalCloud.server_type_available_server_count_batch(
+							objInfrastructure['user_id_owner'],
+							objInfrastructure['datacenter_name'],
+							Object.keys(objServerTypes),
+							Math.ceil(nRAMRequiredGB / Math.min.apply(null, Object.keys(objServerTypeRAMGBytes)))
+						);
+						break;
+					}
+					catch(err)
+					{
+						console.log(err);
+					}
+				}
+
+				console.log("objAvailableServerTypes: " + objAvailableServerTypes);
+
+				bProvisioning = true;
+			}
+		}
+
+		console.log("************************");
+
+		sleep.sleep(nIntervalSecs);
+	}
+
 }
 
 function config()
@@ -89,11 +162,18 @@ function config()
 			'The AutoscalerClusterID environment variable must be set.'
 		);
 	}
+	if(!Process.env.AutoscalerUserID)
+	{
+		throw new Error(
+			'The AutoscalerUserID environment variable must be set.'
+		);
+	}
 
 	return {
 		'strEndpointURL': Process.env.AutoscalerMetalCloudEndpoint,
 		'strAPIKey': Process.env.AutoscalerMetalCloudAPIKey,
-		'nClusterID': Process.env.AutoscalerClusterID
+		'nClusterID': Process.env.AutoscalerClusterID,
+		'nUserID': Process.env.AutoscalerUserID,
 	};
 }
 
