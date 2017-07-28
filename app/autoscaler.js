@@ -7,6 +7,11 @@ const MetalCloud = require("metal-cloud-sdk");
 const JSONRPC = require("jsonrpc-bidirectional");
 
 
+/**
+ * Just fracking "solves" the problem.
+ *
+ * @return null
+ */
 async function run()
 {
 	const objConfig = config();
@@ -125,11 +130,11 @@ async function run()
 		console.log("bProvisioning: " + bProvisioning);
 		console.log("nCPULoadMax: " + nCPULoadMax);
 		console.log("nCPULoadAverage: " + nCPULoadAverage);
-		console.log('arrCPULoadAverage: ' + arrCPULoadAverage);
 		console.log("objProvisionedServerTypeCount: " + JSON.stringify(objProvisionedServerTypeCount));
 
 		if(bProvisioning)
 		{
+			/* Duplicate the code above. */
 			objInfrastructure = await metalCloud.infrastructure_get(objInfrastructure['infrastructure_id']);
 			if(objInfrastructure['infrastructure_operation']['infrastructure_deploy_status'] === 'finished')
 			{
@@ -302,7 +307,7 @@ async function run()
 					{
 						const nServerTypeID = objServerTypeCoreCount[arrCPUCoreCountSorted[i]][j];
 						console.log('nServerTypeID: ' + nServerTypeID);
-						console.log('nRAM: ' + objServerTypes[nServerTypeID]);
+						console.log('nCoreCount: ' + objServerTypes[nServerTypeID]);
 						console.log('nProvisionedServers: ' + objProvisionedServerTypeCount[nServerTypeID]);
 
 						for(let k = 0; k < arrInstanceLabels.length; k++)
@@ -348,6 +353,11 @@ async function run()
 
 }
 
+/**
+ * Gets the config of the autoscaler.
+ *
+ * @return Object
+ */
 function config()
 {
 	if(!Process.env.AutoscalerMetalCloudEndpoint)
@@ -383,6 +393,11 @@ function config()
 	};
 }
 
+/**
+ * Gets the metrics from the couchbase API.
+ *
+ * @return Object
+ */
 async function metrics(strAddress, nPort, strUsername, strPassword)
 {
 	let objMetrics = null;
@@ -402,6 +417,7 @@ async function metrics(strAddress, nPort, strUsername, strPassword)
 }
 
 
+/* Run this shit. */
 try
 {
 	run();
