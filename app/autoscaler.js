@@ -14,13 +14,18 @@ async function run()
 	const metalCloud = await new MetalCloud.Clients.BSI(objConfig['strEndpointURL']);
 	metalCloud.addPlugin(new JSONRPC.Plugins.Client.SignatureAdd(objConfig['strAPIKey']));
 
+	console.log('Getting cluster');
 	let objCluster = await metalCloud.cluster_get(objConfig['nClusterID']);
+
+	console.log('Getting infrastructure');
 	let objInfrastructure = await metalCloud.infrastructure_get(
 		objCluster['infrastructure_id']
 	);
 
 	let objServerTypes = {};
 	let objServerTypeRAMGBytes = {};
+
+	console.log('Getting server types');
 	const arrServerTypes = Object.values(await metalCloud.server_types(objInfrastructure['strDatacenter']));
 
 	for(let i = 0; i < arrServerTypes.length; i++)
@@ -83,6 +88,7 @@ async function run()
 		let objMetrics = null;
 		try
 		{
+			console.log('Getting metrics');
 			objMetrics = JSON.parse(await (await metrics(
 				objInstanceArray['instance_array_subdomain'],
 				8091, /* @TODO: Take it from the cluster_app. */
