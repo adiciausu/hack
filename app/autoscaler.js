@@ -45,17 +45,20 @@ async function run()
 
 	let objInstanceArray = null;
 	let objInstanceServerTypes = {};
+	let objProvisionedServerTypeCount = {};
 	let arrInstanceLabels = Object.keys(objCluster['cluster_app']['nodes']).sort();
 	const strFirstInstanceLabel = arrInstanceLabels[0];
 
 	for(let i = 0; i < arrInstanceLabels.length; i++)
 	{
 		const objInstance = await metalCloud.instance_get(arrInstanceLabels[i]);
-		if(objInstanceServerTypes[objInstance['server_type_id']] === undefined)
+		if(objProvisionedServerTypeCount[objInstance['server_type_id']] === undefined)
 		{
-			objInstanceServerTypes[objInstance['server_type_id']] = 0;
+			objProvisionedServerTypeCount[objInstance['server_type_id']] = 0;
 		}
-		objInstanceServerTypes[objInstance['server_type_id']] += 1;
+		objProvisionedServerTypeCount[objInstance['server_type_id']] += 1;
+
+		objInstanceServerTypes[arrInstanceLabels[i]] = objInstance['server_type_id'];
 
 		if(objInstanceArray === null)
 		{
@@ -71,7 +74,7 @@ async function run()
 		}
 	}
 
-	let i = 0;
+	let m = 0;
 
 	let nCPULoadMax = 100;
 	let arrCPULoadAverage = [];
@@ -117,12 +120,13 @@ async function run()
 
 		nCPULoadAverage /= objMetrics['nodes'].length;
 
-		arrCPULoadAverage.push([i++, nCPULoadAverage]);
+		arrCPULoadAverage.push([m++, nCPULoadAverage]);
 
 		console.log("bProvisioning: " + bProvisioning);
 		console.log("nCPULoadMax: " + nCPULoadMax);
 		console.log("nCPULoadAverage: " + nCPULoadAverage);
-		console.log("objInstanceServerTypes: " + JSON.stringify(objInstanceServerTypes));
+		console.log('arrCPULoadAverage: ' + arrCPULoadAverage);
+		console.log("objProvisionedServerTypeCount: " + JSON.stringify(objProvisionedServerTypeCount));
 
 		if(bProvisioning)
 		{
@@ -130,6 +134,7 @@ async function run()
 			if(objInfrastructure['infrastructure_operation']['infrastructure_deploy_status'] === 'finished')
 			{
 				objInstanceArray = null;
+				objProvisionedServerTypeCount = {};
 				objInstanceServerTypes = {};
 
 				objCluster = await metalCloud.cluster_get(objConfig['nClusterID']);
@@ -138,11 +143,13 @@ async function run()
 				for(let i = 0; i < arrInstanceLabels.length; i++)
 				{
 					const objInstance = await metalCloud.instance_get(arrInstanceLabels[i]);
-					if(objInstanceServerTypes[objInstance['server_type_id']] === undefined)
+					if(objProvisionedServerTypeCount[objInstance['server_type_id']] === undefined)
 					{
-						objInstanceServerTypes[objInstance['server_type_id']] = 0;
+						objProvisionedServerTypeCount[objInstance['server_type_id']] = 0;
 					}
-					objInstanceServerTypes[objInstance['server_type_id']] += 1;
+					objProvisionedServerTypeCount[objInstance['server_type_id']] += 1;
+
+					objInstanceServerTypes[arrInstanceLabels[i]] = objInstance['server_type_id'];
 
 					if(objInstanceArray === null)
 					{
@@ -242,7 +249,7 @@ async function run()
 					};
 				}
 
-				arrServerTypesAux = Object.keys(objInstanceServerTypes);
+				arrServerTypesAux = Object.keys(objProvisionedServerTypeCount);
 				for(let i = 0; i < arrServerTypesAux.length; i++)
 				{
 					if(objServerTypeMatches['server_types'][arrServerTypesAux[i]] === undefined)
@@ -251,7 +258,7 @@ async function run()
 							'server_count': 0
 						};
 					}
-					objServerTypeMatches['server_types'][arrServerTypesAux[i]]['server_count'] += objInstanceServerTypes[arrServerTypesAux[i]];
+					objServerTypeMatches['server_types'][arrServerTypesAux[i]]['server_count'] += objProvisionedServerTypeCount[arrServerTypesAux[i]];
 				}
 
 				console.log('objServerTypeMatches: ' + JSON.stringify(objServerTypeMatches));
@@ -287,21 +294,6 @@ async function run()
 				);
 				console.log('arrCPUCoreCountSorted: ' + arrCPUCoreCountSorted);
 
-				let nInstancesToRemove = 0;
-				let objServerTypeMatches = {'server_types': {}};
-				let arrServerTypesAux = Object.keys(objInstanceServerTypes);
-
-				for(let i = 0; i < arrServerTypesAux.length; i++)
-				{
-					if(objServerTypeMatches['server_types'][arrServerTypesAux[i]] === undefined)
-					{
-						objServerTypeMatches['server_types'][arrServerTypesAux[i]] = {
-							'server_count': 0
-						};
-					}
-					objServerTypeMatches['server_types'][arrServerTypesAux[i]]['server_count'] += objInstanceServerTypes[arrServerTypesAux[i]];
-				}
-
 				for(let i = 0; i < arrCPUCoreCountSorted.length; i++)
 				{
 					let ok = false;
@@ -311,16 +303,28 @@ async function run()
 						const nServerTypeID = objServerTypeCoreCount[arrCPUCoreCountSorted[i]][j];
 						console.log('nServerTypeID: ' + nServerTypeID);
 						console.log('nRAM: ' + objServerTypes[nServerTypeID]);
-						console.log('nProvisionedServers: ' + objInstanceServerTypes[nServerTypeID]);
-						if(
-							objServerTypeMatches['server_types'][nServerTypeID] !== undefined
-							&& objServerTypeMatches['server_types'][nServerTypeID]['server_count'] > 0
-						)
-						{
-							nInstancesToRemove = 1;
-							objServerTypeMatches['server_types'][nServerTypeID]['server_count'] -= 1;
+						console.log('nProvisionedServers: ' + objProvisionedServerTypeCount[nServerTypeID]);
 
-							ok = true;
+						for(let k = 0; k < arrInstanceLabels.length; k++)
+						{
+							if(
+								arrInstanceLabels[k] !== strFirstInstanceLabel
+								&& nServerTypeID === objInstanceServerTypes[strFirstInstanceLabel]
+							)
+							{
+								console.log('arrInstanceLabels[k]: ' + arrInstanceLabels[k]);
+
+								await metalCloud.instance_delete(
+									arrInstanceLabels[k],
+									true
+								);
+								ok = true;
+								break;
+							}
+						}
+
+						if(ok)
+						{
 							break;
 						}
 					}
@@ -331,27 +335,9 @@ async function run()
 					}
 				}
 
-				console.log('objServerTypeMatches: ' + JSON.stringify(objServerTypeMatches));
+				await metalCloud.infrastructure_deploy(objInfrastructure['infrastructure_id']);
 
-				if(objInstanceArray['instance_array_operation']['instance_array_instance_count'] - nInstancesToRemove > 0)
-				{
-					objInstanceArrayNew = await metalCloud.instance_array_edit(
-						objInstanceArray['instance_array_id'],
-						{
-							'instance_array_id': objInstanceArray['instance_array_id'],
-							'instance_array_change_id': objInstanceArray['instance_array_operation']['instance_array_change_id'],
-							'instance_array_label': objInstanceArray['instance_array_operation']['instance_array_label'],
-							'instance_array_instance_count': objInstanceArray['instance_array_operation']['instance_array_instance_count'] - nInstancesToRemove
-						},
-						false,
-						true,
-						objServerTypeMatches
-					);
-
-					await metalCloud.infrastructure_deploy(objInfrastructure['infrastructure_id']);
-
-					bProvisioning = true;
-				}
+				bProvisioning = true;
 			}
 		}
 
@@ -409,7 +395,7 @@ async function metrics(strAddress, nPort, strUsername, strPassword)
 	}
 	catch(err)
 	{
-		console.log('Error: ' + err);
+		console.log(err);
 	}
 
 	return objMetrics;
