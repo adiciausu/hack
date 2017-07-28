@@ -137,6 +137,7 @@ async function run()
 		console.log("nCPULoadMax: " + nCPULoadMax);
 		console.log("nCPULoadAverage: " + nCPULoadAverage);
 		console.log("objProvisionedServerTypeCount: " + JSON.stringify(objProvisionedServerTypeCount));
+		// console.log('arrCPULoadAverage: ' + arrCPULoadAverage);
 
 		nIndex += 1;
 
@@ -177,17 +178,25 @@ async function run()
 		}
 
 		if(
-			!bProvisioning
-			&& arrCPULoadAverage.length >= nMinSampleSize
+			// !bProvisioning
+			arrCPULoadAverage.length >= nMinSampleSize
 		)
 		{
 			const forecast = new Forecast();
-			const arrPrevCPULoadAverage = arrCPULoadAverage.slice(0);
+			const arrPrevCPULoadAverage = JSON.parse(JSON.stringify(arrCPULoadAverage));
 			const nCPULoadForecast = forecast.forecast(
 				arrCPULoadAverage,
 				nProvisioningDurationSecs / nIntervalSecs
 			);
 			arrCPULoadAverage = arrPrevCPULoadAverage;
+
+			/* ?!?!?! */
+			if(nCPULoadForecast > 100)
+			{
+				arrCPULoadAverage = [];
+				sleep.sleep(1);
+				continue;
+			}
 
 			console.log("nCPULoadForecast: " + nCPULoadForecast);
 
