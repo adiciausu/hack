@@ -76,7 +76,7 @@ async function run()
 	const nRAMTotalShrinkFactor = 0.7;
 	const nMinSampleSize = 5;
 
-	let bProvisioning = false;
+	let bProvisioning = objInfrastructure['infrastructure_operation']['infrastructure_deploy_status'] === 'ongoing';
 
 	while(true)
 	{
