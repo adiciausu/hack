@@ -178,8 +178,8 @@ async function run()
 		}
 
 		if(
-			// !bProvisioning
-			arrCPULoadAverage.length >= nMinSampleSize
+			!bProvisioning
+			&& arrCPULoadAverage.length >= nMinSampleSize
 		)
 		{
 			const forecast = new Forecast();
