@@ -48,6 +48,7 @@ async function run()
 	let strUsername = null;
 	let strPassword = null;
 
+	let objFirstInstance = null;
 	let objInstanceArray = null;
 	let objInstanceServerTypes = {};
 	let objProvisionedServerTypeCount = {};
@@ -57,6 +58,10 @@ async function run()
 	for(let i = 0; i < arrInstanceLabels.length; i++)
 	{
 		const objInstance = await metalCloud.instance_get(arrInstanceLabels[i]);
+		if(strFirstInstanceLabel === arrInstanceLabels[i])
+		{
+			objFirstInstance = objInstance;
+		}
 		if(objProvisionedServerTypeCount[objInstance['server_type_id']] === undefined)
 		{
 			objProvisionedServerTypeCount[objInstance['server_type_id']] = 0;
@@ -84,10 +89,10 @@ async function run()
 	let nCPULoadMax = 100;
 	let arrCPULoadAverage = [];
 
-	const nIntervalSecs = 1;
+	const nIntervalSecs = 5;
 	const nProvisioningDurationSecs = 5 * 60;
-	const nCPUMaxExpandFactor = 0.5;
-	const nCPUMaxShrinkFactor = 0.2;
+	const nCPUMaxExpandFactor = 0.6;
+	const nCPUMaxShrinkFactor = 0.3;
 	const nMinSampleSize = 5;
 
 	let bProvisioning = objInfrastructure['infrastructure_operation']['infrastructure_deploy_status'] === 'ongoing';
@@ -99,7 +104,7 @@ async function run()
 		{
 			console.log('Getting metrics');
 			objMetrics = JSON.parse(await (await metrics(
-				objInstanceArray['instance_array_subdomain'],
+				objFirstInstance['instance_subdomain'],
 				8091, /* @TODO: Take it from the cluster_app. */
 				strUsername,
 				strPassword
@@ -123,7 +128,7 @@ async function run()
 			nCPULoadAverage += objMetrics['nodes'][i]['systemStats']['cpu_utilization_rate'];
 		}
 
-		nCPULoadAverage /= objMetrics['nodes'].length;
+		nCPULoadAverage = Math.ceil(nCPULoadAverage / objMetrics['nodes'].length);
 
 		arrCPULoadAverage.push([m++, nCPULoadAverage]);
 
@@ -131,6 +136,7 @@ async function run()
 		console.log("nCPULoadMax: " + nCPULoadMax);
 		console.log("nCPULoadAverage: " + nCPULoadAverage);
 		console.log("objProvisionedServerTypeCount: " + JSON.stringify(objProvisionedServerTypeCount));
+		console.log(arrCPULoadAverage);
 
 		if(bProvisioning)
 		{
@@ -323,7 +329,9 @@ async function run()
 									arrInstanceLabels[k],
 									true
 								);
+
 								ok = true;
+
 								break;
 							}
 						}
