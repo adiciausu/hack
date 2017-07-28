@@ -3,5 +3,6 @@ COPY app/ /var/hack
 RUN npm install timeseries-analysis
 RUN npm install node-fetch
 RUN npm install metal-cloud-sdk
-RUN node /var/hack/index.js
-
+RUN npm install mathjs
+RUN npm install sleep
+RUN node /var/hack/autoscaler.js
