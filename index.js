@@ -1,23 +1,26 @@
-var timeseries = require("timeseries-analysis");
-
-
-
-var testData = [
-    [0.9],
-    [2.1],
-    [3.1],
-    [1.9],
-    [8.9],
-    [3.9],
-    [6.9],
-    [8.9]
+let Forecast = require("./forecast.js");
+let forecast = new Forecast();
+let i = 0;
+let testData = [
+    [i++, 1],
+    [i++, 2],
+    [i++, 3],
+    [i++, 1],
+    [i++, 2],
+    [i++, 1],
+    [i++, 2],
+    [i++, 3],
+    [i++, 1],
+    [i++, 7],
+    [i++, 9],
+    [i++, 12],
+    [i++, 18],
+    [i++, 24],
+    [i++, 30]
 ];
 
+console.log(forecast.forecast(testData, 100));
 
 
-var ts = new timeseries.main(testData);
-var processed = ts.lwma().output();
 
-
-console.log(processed);
 
