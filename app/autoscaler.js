@@ -23,18 +23,18 @@ async function run()
 	);
 
 	let objServerTypes = {};
-	let objServerTypeRAMGBytes = {};
+	let objServerTypeCoreCount = {};
 
 	console.log('Getting server types');
 	const arrServerTypes = Object.values(await metalCloud.server_types(objInfrastructure['strDatacenter']));
 
 	for(let i = 0; i < arrServerTypes.length; i++)
 	{
-		if(!objServerTypeRAMGBytes[arrServerTypes[i]['server_processor_core_count']])
+		if(!objServerTypeCoreCount[arrServerTypes[i]['server_processor_core_count']])
 		{
-			objServerTypeRAMGBytes[arrServerTypes[i]['server_processor_core_count']] = [];
+			objServerTypeCoreCount[arrServerTypes[i]['server_processor_core_count']] = [];
 		}
-		objServerTypeRAMGBytes[arrServerTypes[i]['server_processor_core_count']].push(
+		objServerTypeCoreCount[arrServerTypes[i]['server_processor_core_count']].push(
 			arrServerTypes[i]['server_type_id']
 		);
 		objServerTypes[arrServerTypes[i]['server_type_id']] = arrServerTypes[i]['server_processor_core_count'];
@@ -45,7 +45,8 @@ async function run()
 
 	let objInstanceArray = null;
 	let objInstanceServerTypes = {};
-	let arrInstanceLabels = Object.keys(objCluster['cluster_app']['nodes']);
+	let arrInstanceLabels = Object.keys(objCluster['cluster_app']['nodes']).sort();
+	const strFirstInstanceLabel = arrInstanceLabels[0];
 
 	for(let i = 0; i < arrInstanceLabels.length; i++)
 	{
@@ -72,13 +73,13 @@ async function run()
 
 	let i = 0;
 
-	let nRAMTotalB = null;
-	let arrRAMUsedB = [];
+	let nCPULoadMax = 100;
+	let arrCPULoadAverage = [];
 
-	const nIntervalSecs = 5;
+	const nIntervalSecs = 1;
 	const nProvisioningDurationSecs = 5 * 60;
-	const nRAMTotalExpandFactor = 0.5;
-	const nRAMTotalShrinkFactor = 0.2;
+	const nCPUMaxExpandFactor = 0.5;
+	const nCPUMaxShrinkFactor = 0.2;
 	const nMinSampleSize = 5;
 
 	let bProvisioning = objInfrastructure['infrastructure_operation']['infrastructure_deploy_status'] === 'ongoing';
@@ -116,14 +117,11 @@ async function run()
 
 		nCPULoadAverage /= objMetrics['nodes'].length;
 
-		nRAMTotalB = 100;
-		let nRAMUsed = nCPULoadAverage;
-
-		arrRAMUsedB.push([i++, nRAMUsed]);
+		arrCPULoadAverage.push([i++, nCPULoadAverage]);
 
 		console.log("bProvisioning: " + bProvisioning);
-		console.log("nRAMTotalB: " + nRAMTotalB);
-		console.log("nRAMUsed: " + nRAMUsed);
+		console.log("nCPULoadMax: " + nCPULoadMax);
+		console.log("nCPULoadAverage: " + nCPULoadAverage);
 		console.log("objInstanceServerTypes: " + JSON.stringify(objInstanceServerTypes));
 
 		if(bProvisioning)
@@ -160,22 +158,22 @@ async function run()
 
 		if(
 			!bProvisioning
-			&& arrRAMUsedB.length >= nMinSampleSize
+			&& arrCPULoadAverage.length >= nMinSampleSize
 		)
 		{
 			const forecast = new Forecast();
-			const nRAMUsedForecastB = forecast.forecast(
-				arrRAMUsedB,
+			const nCPULoadForecast = forecast.forecast(
+				arrCPULoadAverage,
 				nProvisioningDurationSecs / nIntervalSecs
 			);
 
-			console.log("nRAMForecasted: " + nRAMUsedForecastB);
+			console.log("nCPULoadForecast: " + nCPULoadForecast);
 
-			if(nRAMUsedForecastB >= nRAMTotalB * nRAMTotalExpandFactor)
+			if(nCPULoadForecast >= nCPULoadMax * nCPUMaxExpandFactor)
 			{
-				console.log('Expanding ');
-				console.log('nRAMUsedForecastB ' + nRAMUsedForecastB);
-				console.log('nRAMTotalB * nRAMTotalExpandFactor ' + (nRAMTotalB * nRAMTotalExpandFactor));
+				console.log('Expanding');
+				console.log('nCPULoadForecast ' + nCPULoadForecast);
+				console.log('nCPULoadMax * nCPUMaxExpandFactor ' + (nCPULoadMax * nCPUMaxExpandFactor));
 
 				let objAvailableServerTypes = {};
 				try
@@ -196,24 +194,24 @@ async function run()
 
 				console.log("objAvailableServerTypes: " + JSON.stringify(objAvailableServerTypes));
 
-				const arrRAMSorted = Array.from(new Set(Object.values(objServerTypes))).sort(
+				const arrCPUCoreCountSorted = Array.from(new Set(Object.values(objServerTypes))).sort(
 					function (a, b)
 					{
-						return a - b;
+						return b - a;
 					}
 				);
-				console.log('arrRAMSorted: ' + arrRAMSorted);
+				console.log('arrCPUCoreCountSorted: ' + arrCPUCoreCountSorted);
 
 				let nInstancesToAdd = 0;
 				let objServerTypesToProvision = {};
 
-				for(let i = 0; i < arrRAMSorted.length; i++)
+				for(let i = 0; i < arrCPUCoreCountSorted.length; i++)
 				{
 					let ok = false;
 
-					for(let j = 0; j < objServerTypeRAMGBytes[arrRAMSorted[i]].length; j++)
+					for(let j = 0; j < objServerTypeCoreCount[arrCPUCoreCountSorted[i]].length; j++)
 					{
-						const nServerTypeID = objServerTypeRAMGBytes[arrRAMSorted[i]][j];
+						const nServerTypeID = objServerTypeCoreCount[arrCPUCoreCountSorted[i]][j];
 						console.log('nServerTypeID: ' + nServerTypeID);
 						console.log('nRAM: ' + objServerTypes[nServerTypeID]);
 						console.log('nAvailableServers: ' + objAvailableServerTypes[nServerTypeID]);
@@ -235,25 +233,25 @@ async function run()
 				console.log('objServerTypesToProvision: ' + JSON.stringify(objServerTypesToProvision));
 
 				let objServerTypeMatches = {'server_types': {}};
-				let arrBlaBla = Object.keys(objServerTypesToProvision);
+				let arrServerTypesAux = Object.keys(objServerTypesToProvision);
 
-				for(let i = 0; i < arrBlaBla.length; i++)
+				for(let i = 0; i < arrServerTypesAux.length; i++)
 				{
-					objServerTypeMatches['server_types'][arrBlaBla[i]] = {
-						'server_count': objServerTypesToProvision[arrBlaBla[i]]
+					objServerTypeMatches['server_types'][arrServerTypesAux[i]] = {
+						'server_count': objServerTypesToProvision[arrServerTypesAux[i]]
 					};
 				}
 
-				arrBlaBla = Object.keys(objInstanceServerTypes);
-				for(let i = 0; i < arrBlaBla.length; i++)
+				arrServerTypesAux = Object.keys(objInstanceServerTypes);
+				for(let i = 0; i < arrServerTypesAux.length; i++)
 				{
-					if(objServerTypeMatches['server_types'][arrBlaBla[i]] === undefined)
+					if(objServerTypeMatches['server_types'][arrServerTypesAux[i]] === undefined)
 					{
-						objServerTypeMatches['server_types'][arrBlaBla[i]] = {
+						objServerTypeMatches['server_types'][arrServerTypesAux[i]] = {
 							'server_count': 0
 						};
 					}
-					objServerTypeMatches['server_types'][arrBlaBla[i]]['server_count'] += objInstanceServerTypes[arrBlaBla[i]];
+					objServerTypeMatches['server_types'][arrServerTypesAux[i]]['server_count'] += objInstanceServerTypes[arrServerTypesAux[i]];
 				}
 
 				console.log('objServerTypeMatches: ' + JSON.stringify(objServerTypeMatches));
@@ -277,40 +275,40 @@ async function run()
 
 				bProvisioning = true;
 			}
-			else if(nRAMUsedForecastB <= nRAMTotalB * nRAMTotalShrinkFactor)
+			else if(nCPULoadForecast <= nCPULoadMax * nCPUMaxShrinkFactor)
 			{
-				console.log('Shrinking ');
+				console.log('Shrinking');
 
-				const arrRAMSorted = Array.from(new Set(Object.values(objServerTypes))).sort(
+				const arrCPUCoreCountSorted = Array.from(new Set(Object.values(objServerTypes))).sort(
 					function (a, b)
 					{
 						return a - b;
 					}
 				);
-				console.log('arrRAMSorted: ' + arrRAMSorted);
+				console.log('arrCPUCoreCountSorted: ' + arrCPUCoreCountSorted);
 
 				let nInstancesToRemove = 0;
 				let objServerTypeMatches = {'server_types': {}};
-				let arrBlaBla = Object.keys(objInstanceServerTypes);
+				let arrServerTypesAux = Object.keys(objInstanceServerTypes);
 
-				for(let i = 0; i < arrBlaBla.length; i++)
+				for(let i = 0; i < arrServerTypesAux.length; i++)
 				{
-					if(objServerTypeMatches['server_types'][arrBlaBla[i]] === undefined)
+					if(objServerTypeMatches['server_types'][arrServerTypesAux[i]] === undefined)
 					{
-						objServerTypeMatches['server_types'][arrBlaBla[i]] = {
+						objServerTypeMatches['server_types'][arrServerTypesAux[i]] = {
 							'server_count': 0
 						};
 					}
-					objServerTypeMatches['server_types'][arrBlaBla[i]]['server_count'] += objInstanceServerTypes[arrBlaBla[i]];
+					objServerTypeMatches['server_types'][arrServerTypesAux[i]]['server_count'] += objInstanceServerTypes[arrServerTypesAux[i]];
 				}
 
-				for(let i = 0; i < arrRAMSorted.length; i++)
+				for(let i = 0; i < arrCPUCoreCountSorted.length; i++)
 				{
 					let ok = false;
 
-					for(let j = 0; j < objServerTypeRAMGBytes[arrRAMSorted[i]].length; j++)
+					for(let j = 0; j < objServerTypeCoreCount[arrCPUCoreCountSorted[i]].length; j++)
 					{
-						const nServerTypeID = objServerTypeRAMGBytes[arrRAMSorted[i]][j];
+						const nServerTypeID = objServerTypeCoreCount[arrCPUCoreCountSorted[i]][j];
 						console.log('nServerTypeID: ' + nServerTypeID);
 						console.log('nRAM: ' + objServerTypes[nServerTypeID]);
 						console.log('nProvisionedServers: ' + objInstanceServerTypes[nServerTypeID]);
