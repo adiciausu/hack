@@ -30,14 +30,14 @@ async function run()
 
 	for(let i = 0; i < arrServerTypes.length; i++)
 	{
-		if(!objServerTypeRAMGBytes[arrServerTypes[i]['server_ram_gbytes']])
+		if(!objServerTypeRAMGBytes[arrServerTypes[i]['server_processor_core_count']])
 		{
-			objServerTypeRAMGBytes[arrServerTypes[i]['server_ram_gbytes']] = [];
+			objServerTypeRAMGBytes[arrServerTypes[i]['server_processor_core_count']] = [];
 		}
-		objServerTypeRAMGBytes[arrServerTypes[i]['server_ram_gbytes']].push(
+		objServerTypeRAMGBytes[arrServerTypes[i]['server_processor_core_count']].push(
 			arrServerTypes[i]['server_type_id']
 		);
-		objServerTypes[arrServerTypes[i]['server_type_id']] = arrServerTypes[i]['server_ram_gbytes'];
+		objServerTypes[arrServerTypes[i]['server_type_id']] = arrServerTypes[i]['server_processor_core_count'];
 	}
 
 	let strUsername = null;
@@ -75,10 +75,10 @@ async function run()
 	let nRAMTotalB = null;
 	let arrRAMUsedB = [];
 
-	const nIntervalSecs = 1;
+	const nIntervalSecs = 5;
 	const nProvisioningDurationSecs = 5 * 60;
-	const nRAMTotalExpandFactor = 0.7;
-	const nRAMTotalShrinkFactor = 0.7;
+	const nRAMTotalExpandFactor = 0.5;
+	const nRAMTotalShrinkFactor = 0.2;
 	const nMinSampleSize = 5;
 
 	let bProvisioning = objInfrastructure['infrastructure_operation']['infrastructure_deploy_status'] === 'ongoing';
@@ -102,23 +102,29 @@ async function run()
 			continue;
 		}
 
-		if(
-			objMetrics['storageTotals']['ram']['total'] === undefined
-			|| objMetrics['storageTotals']['ram']['used'] === undefined
-		)
+		if(objMetrics['nodes'] === undefined)
 		{
 			sleep.sleep(2);
 			continue;
 		}
 
-		nRAMTotalB = objMetrics['storageTotals']['ram']['total'];
-		arrRAMUsedB.push([i++, objMetrics['storageTotals']['ram']['used']]);
+		let nCPULoadAverage = 0;
+		for(let i = 0; i < objMetrics['nodes'].length; i++)
+		{
+			nCPULoadAverage += objMetrics['nodes'][i]['systemStats']['cpu_utilization_rate'];
+		}
+
+		nCPULoadAverage /= objMetrics['nodes'].length;
+
+		nRAMTotalB = 100;
+		let nRAMUsed = nCPULoadAverage;
+
+		arrRAMUsedB.push([i++, nRAMUsed]);
 
 		console.log("bProvisioning: " + bProvisioning);
 		console.log("nRAMTotalB: " + nRAMTotalB);
-		console.log("nRAMUsed: " + objMetrics['storageTotals']['ram']['used']);
+		console.log("nRAMUsed: " + nRAMUsed);
 		console.log("objInstanceServerTypes: " + JSON.stringify(objInstanceServerTypes));
-
 
 		if(bProvisioning)
 		{
@@ -167,11 +173,9 @@ async function run()
 
 			if(nRAMUsedForecastB >= nRAMTotalB * nRAMTotalExpandFactor)
 			{
-				const nRAMTotalGB = nRAMTotalB / 1024 / 1024 / 1024;
-				const nRAMUsedForecastGB = nRAMUsedForecastB / 1024 / 1024 / 1204;
-				let nRAMRequiredGB = nRAMUsedForecastGB - nRAMTotalGB * nRAMTotalExpandFactor;
-
-				console.log("nRAMRequiredGB: " + nRAMRequiredGB);
+				console.log('Expanding ');
+				console.log('nRAMUsedForecastB ' + nRAMUsedForecastB);
+				console.log('nRAMTotalB * nRAMTotalExpandFactor ' + (nRAMTotalB * nRAMTotalExpandFactor));
 
 				let objAvailableServerTypes = {};
 				try
@@ -180,7 +184,7 @@ async function run()
 						objInfrastructure['user_id_owner'],
 						objInfrastructure['datacenter_name'],
 						Object.keys(objServerTypes),
-						Math.ceil(nRAMRequiredGB / Math.min.apply(null, Object.values(objServerTypes)))
+						100
 					);
 				}
 				catch(err)
@@ -215,23 +219,10 @@ async function run()
 						console.log('nAvailableServers: ' + objAvailableServerTypes[nServerTypeID]);
 						if(objAvailableServerTypes[nServerTypeID] > 0)
 						{
-
-							const nNumberOfServers = Math.min.apply(
-								null,
-								[
-									objAvailableServerTypes[nServerTypeID],
-									Math.ceil(nRAMRequiredGB / objServerTypes[nServerTypeID])
-								]
-							);
-							console.log('nNumberOfServers: ' + nNumberOfServers);
-							objServerTypesToProvision[nServerTypeID] = nNumberOfServers;
-							nInstancesToAdd += nNumberOfServers;
-							nRAMRequiredGB -= nNumberOfServers * objServerTypes[nServerTypeID];
-							if(nRAMRequiredGB <= 0)
-							{
-								ok = true;
-								break;
-							}
+							nInstancesToAdd = 1;
+							objServerTypesToProvision[nServerTypeID] = 1;
+							ok = true;
+							break;
 						}
 					}
 
@@ -288,25 +279,12 @@ async function run()
 			}
 			else if(nRAMUsedForecastB <= nRAMTotalB * nRAMTotalShrinkFactor)
 			{
-				const nRAMTotalGB = nRAMTotalB / 1024 / 1024 / 1024;
-				const nRAMUsedForecastGB = nRAMUsedForecastB / 1024 / 1024 / 1204;
-				let nRAMExcessGB = nRAMTotalGB * nRAMTotalExpandFactor - nRAMUsedForecastGB;
-
-				/* Bug safety. */
-				if(nRAMExcessGB >= nRAMTotalGB)
-				{
-					nRAMExcessGB = Math.max(
-						nRAMTotalGB - 32,
-						0
-					);
-				}
-
-				console.log("nRAMExcessGB: " + nRAMExcessGB);
+				console.log('Shrinking ');
 
 				const arrRAMSorted = Array.from(new Set(Object.values(objServerTypes))).sort(
 					function (a, b)
 					{
-						return b - a;
+						return a - b;
 					}
 				);
 				console.log('arrRAMSorted: ' + arrRAMSorted);
@@ -341,23 +319,11 @@ async function run()
 							&& objServerTypeMatches['server_types'][nServerTypeID]['server_count'] > 0
 						)
 						{
-							const nNumberOfServers = Math.min.apply(
-								null,
-								[
-									objInstanceServerTypes[nServerTypeID],
-									Math.floor(nRAMExcessGB / objServerTypes[nServerTypeID])
-								]
-							);
+							nInstancesToRemove = 1;
+							objServerTypeMatches['server_types'][nServerTypeID]['server_count'] -= 1;
 
-							console.log('nNumberOfServers: ' + nNumberOfServers);
-							objServerTypeMatches['server_types'][nServerTypeID]['server_count'] -= nNumberOfServers;
-							nInstancesToRemove += nNumberOfServers;
-							nRAMExcessGB -= nNumberOfServers * objServerTypes[nServerTypeID];
-							if(nRAMExcessGB <= 0)
-							{
-								ok = true;
-								break;
-							}
+							ok = true;
+							break;
 						}
 					}
 
@@ -369,22 +335,25 @@ async function run()
 
 				console.log('objServerTypeMatches: ' + JSON.stringify(objServerTypeMatches));
 
-				objInstanceArrayNew = await metalCloud.instance_array_edit(
-					objInstanceArray['instance_array_id'],
-					{
-						'instance_array_id': objInstanceArray['instance_array_id'],
-						'instance_array_change_id': objInstanceArray['instance_array_operation']['instance_array_change_id'],
-						'instance_array_label': objInstanceArray['instance_array_operation']['instance_array_label'],
-						'instance_array_instance_count': objInstanceArray['instance_array_operation']['instance_array_instance_count'] - nInstancesToRemove
-					},
-					false,
-					true,
-					objServerTypeMatches
-				);
+				if(objInstanceArray['instance_array_operation']['instance_array_instance_count'] - nInstancesToRemove > 0)
+				{
+					objInstanceArrayNew = await metalCloud.instance_array_edit(
+						objInstanceArray['instance_array_id'],
+						{
+							'instance_array_id': objInstanceArray['instance_array_id'],
+							'instance_array_change_id': objInstanceArray['instance_array_operation']['instance_array_change_id'],
+							'instance_array_label': objInstanceArray['instance_array_operation']['instance_array_label'],
+							'instance_array_instance_count': objInstanceArray['instance_array_operation']['instance_array_instance_count'] - nInstancesToRemove
+						},
+						false,
+						true,
+						objServerTypeMatches
+					);
 
-				await metalCloud.infrastructure_deploy(objInfrastructure['infrastructure_id']);
+					await metalCloud.infrastructure_deploy(objInfrastructure['infrastructure_id']);
 
-				bProvisioning = true;
+					bProvisioning = true;
+				}
 			}
 		}
 
