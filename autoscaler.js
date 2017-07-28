@@ -59,12 +59,13 @@ async function run()
 		}
 	}
 
-	const objMetrics = metrics(
+	const objMetrics = await metrics(
 		objInstanceArray['instance_array_subdomain'],
 		8091, /* @TODO: Take it from the cluster_app. */
 		strUsername,
 		strPassword
 	);
+
 	console.log(objMetrics);
 }
 
@@ -96,18 +97,20 @@ function config()
 	};
 }
 
-function metrics(strAddress, nPort, strUsername, strPassword)
+async function metrics(strAddress, nPort, strUsername, strPassword)
 {
-	var objMetrics = null;
+	let objMetrics = null;
 
-	Fetch(
-		'http://' + strUsername + ':' + strPassword + '@' + strAddress + ':' + nPort + '/pools/default'
-	).then(function(res) {
-		console.log(res.text());
-		objMetrics = res.text();
-	}).catch(function(err) {
-		console.log(err)
-	});
+	try
+	{
+		objMetrics = await Fetch(
+			'http://' + strUsername + ':' + strPassword + '@' + strAddress + ':' + nPort + '/pools/default'
+		);
+	}
+	catch(err)
+	{
+		console.log('Error: ' + err);
+	}
 
 	return objMetrics;
 }
