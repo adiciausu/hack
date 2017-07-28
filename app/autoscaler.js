@@ -299,10 +299,10 @@ async function run()
 				);
 				console.log('arrCPUCoreCountSorted: ' + arrCPUCoreCountSorted);
 
+				let ok = false;
+
 				for(let i = 0; i < arrCPUCoreCountSorted.length; i++)
 				{
-					let ok = false;
-
 					for(let j = 0; j < objServerTypeCoreCount[arrCPUCoreCountSorted[i]].length; j++)
 					{
 						const nServerTypeID = objServerTypeCoreCount[arrCPUCoreCountSorted[i]][j];
