@@ -84,7 +84,7 @@ async function run()
 		}
 	}
 
-	let m = 0;
+	let nIndex = 0;
 
 	let nCPULoadMax = 100;
 	let arrCPULoadAverage = [];
@@ -130,13 +130,15 @@ async function run()
 
 		nCPULoadAverage = Math.ceil(nCPULoadAverage / objMetrics['nodes'].length);
 
-		arrCPULoadAverage.push([m++, nCPULoadAverage]);
+		arrCPULoadAverage.push([nIndex, nCPULoadAverage]);
 
 		console.log("bProvisioning: " + bProvisioning);
+		console.log("nIndex: " + nIndex);
 		console.log("nCPULoadMax: " + nCPULoadMax);
 		console.log("nCPULoadAverage: " + nCPULoadAverage);
 		console.log("objProvisionedServerTypeCount: " + JSON.stringify(objProvisionedServerTypeCount));
-		console.log(arrCPULoadAverage);
+
+		nIndex += 1;
 
 		if(bProvisioning)
 		{
@@ -180,10 +182,12 @@ async function run()
 		)
 		{
 			const forecast = new Forecast();
+			const arrPrevCPULoadAverage = arrCPULoadAverage.slice(0);
 			const nCPULoadForecast = forecast.forecast(
 				arrCPULoadAverage,
 				nProvisioningDurationSecs / nIntervalSecs
 			);
+			arrCPULoadAverage = arrPrevCPULoadAverage;
 
 			console.log("nCPULoadForecast: " + nCPULoadForecast);
 
