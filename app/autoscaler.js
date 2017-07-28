@@ -93,7 +93,7 @@ async function run()
 	const nProvisioningDurationSecs = 5 * 60;
 	const nCPUMaxExpandFactor = 0.6;
 	const nCPUMaxShrinkFactor = 0.3;
-	const nMinSampleSize = 5;
+	const nMinSampleSize = 3;
 
 	let bProvisioning = objInfrastructure['infrastructure_operation']['infrastructure_deploy_status'] === 'ongoing';
 
