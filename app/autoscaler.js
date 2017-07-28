@@ -340,9 +340,12 @@ async function run()
 					}
 				}
 
-				await metalCloud.infrastructure_deploy(objInfrastructure['infrastructure_id']);
+				if(ok)
+				{
+					await metalCloud.infrastructure_deploy(objInfrastructure['infrastructure_id']);
 
-				bProvisioning = true;
+					bProvisioning = true;
+				}
 			}
 		}
 
